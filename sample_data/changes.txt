@@ -1,0 +1,16 @@
+SOLIDWORKS 2025 Release Notes & Software Delta:
+
+CHANGE 1:
+Sketch toolbar redesigned with updated icon arrangement and unified palette grouping.
+
+CHANGE 2:
+Constraints panel moved from the floating window directly into the docked Left FeatureManager design tree.
+
+CHANGE 3:
+Mate Controller has been renamed to Kinematic Assembly Controller to reflect modern multi-body simulation standards.
+
+CHANGE 4:
+Legacy 2D Drawing Export has been deprecated in favor of native MBD workflows.
+
+CHANGE 5:
+AI-Assisted Hole Wizard introduced for automatic fastener sizing and intelligent hole positioning.

@@ -1,0 +1,25 @@
+# iSync - Intelligent Course Update & Gap Analysis Agent
+# Core Dependencies
+streamlit>=1.35.0
+pydantic>=2.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+
+# Document Parsing
+pymupdf>=1.23.0
+python-docx>=1.1.0
+python-pptx>=1.0.0
+pdfplumber>=0.10.0
+Pillow>=10.0.0
+
+# Export & Templating
+reportlab>=4.0.0
+jinja2>=3.1.0
+
+# AI / Provider Support
+google-genai>=0.1.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=8.0.0
