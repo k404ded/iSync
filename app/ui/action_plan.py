@@ -17,7 +17,7 @@ def render_action_plan(report: GapAnalysisReport):
         return
 
     # Group action items by document
-    doc_plan: dict[str, list] = {}
+    doc_plan: dict = {}
     for item in report.action_plan:
         doc_plan.setdefault(item.document, []).append(item)
 

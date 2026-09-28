@@ -5,21 +5,27 @@ Renders an executive dossier with Document Impact Map, Action Plan, and Findings
 
 import io
 from app.models.schemas import GapAnalysisReport, PriorityLevel
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Table,
-    TableStyle,
-)
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.platypus import (
+        SimpleDocTemplate,
+        Paragraph,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    HAS_REPORTLAB = True
+except (ImportError, Exception):
+    HAS_REPORTLAB = False
 
 
 class PDFExporter:
     @staticmethod
     def export(report: GapAnalysisReport) -> bytes:
+        if not HAS_REPORTLAB:
+            raise RuntimeError("ReportLab library is not available in this environment for PDF export.")
         buf = io.BytesIO()
         doc = SimpleDocTemplate(
             buf,

@@ -3,17 +3,16 @@ Left Sidebar View for iSync.
 Organizes Software Change, Course Material, Analysis execution, and Report Exports.
 """
 
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Any
 from pathlib import Path
 import streamlit as st
 from app.models.schemas import GapAnalysisReport
-from app.export import CSVExporter, HTMLExporter, PDFExporter
 
 
 def render_sidebar(
     sample_changes_text: str,
     sample_files: list,
-) -> Tuple[str, str, str, str, List[any], bool, bool]:
+) -> Tuple[str, str, str, str, List[Any], bool, bool]:
     """
     Renders the sidebar controls.
     Returns:
@@ -80,32 +79,44 @@ def render_sidebar(
             st.subheader("4. Export Report")
             rep: GapAnalysisReport = st.session_state["report"]
 
-            csv_bytes = CSVExporter.export(rep)
-            st.download_button(
-                "📥 Export CSV",
-                data=csv_bytes,
-                file_name=f"iSync_{rep.software}_{rep.new_version}_{rep.report_id}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
+            try:
+                from app.export.csv_exporter import CSVExporter
+                csv_bytes = CSVExporter.export(rep)
+                st.download_button(
+                    "📥 Export CSV",
+                    data=csv_bytes,
+                    file_name=f"iSync_{rep.software}_{rep.new_version}_{rep.report_id}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+            except Exception as e:
+                st.caption(f"CSV export error: {e}")
 
-            html_str = HTMLExporter.export(rep)
-            st.download_button(
-                "📥 Export HTML Report",
-                data=html_str,
-                file_name=f"iSync_{rep.software}_{rep.new_version}_{rep.report_id}.html",
-                mime="text/html",
-                use_container_width=True,
-            )
+            try:
+                from app.export.html_exporter import HTMLExporter
+                html_str = HTMLExporter.export(rep)
+                st.download_button(
+                    "📥 Export HTML Report",
+                    data=html_str,
+                    file_name=f"iSync_{rep.software}_{rep.new_version}_{rep.report_id}.html",
+                    mime="text/html",
+                    use_container_width=True,
+                )
+            except Exception as e:
+                st.caption(f"HTML export error: {e}")
 
-            pdf_bytes = PDFExporter.export(rep)
-            st.download_button(
-                "📥 Export PDF Dossier",
-                data=pdf_bytes,
-                file_name=f"iSync_{rep.software}_{rep.new_version}_{rep.report_id}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
+            try:
+                from app.export.pdf_exporter import PDFExporter
+                pdf_bytes = PDFExporter.export(rep)
+                st.download_button(
+                    "📥 Export PDF Dossier",
+                    data=pdf_bytes,
+                    file_name=f"iSync_{rep.software}_{rep.new_version}_{rep.report_id}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                )
+            except Exception as e:
+                st.caption(f"PDF export note: {e}")
 
     # If change doc uploaded, parse its text
     final_change_text = change_text
