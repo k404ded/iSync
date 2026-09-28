@@ -13,6 +13,7 @@ from app.models.schemas import (
     Finding,
     ActionItem,
     DocumentSummary,
+    TraceabilityItem,
     GapAnalysisReport,
     ImpactStatus,
     PriorityLevel,
@@ -41,6 +42,7 @@ class GapAnalysisPipeline:
         change_text: str,
         all_chunks: List[ContentChunk],
         all_document_names: List[str],
+        reference_document_names: Optional[List[str]] = None,
         progress_cb: Optional[Callable[[int, str], None]] = None,
     ) -> GapAnalysisReport:
         def notify(step: int, msg: str):
@@ -90,13 +92,17 @@ class GapAnalysisPipeline:
                     refined_findings.append(f)
             findings = refined_findings
 
-        # Step 5: Document Summaries & Author Action Plan
-        notify(5, "Generating Document Impact Map and Author Action Plan...")
-        doc_summaries, unaffected_docs = self._build_document_summaries(all_document_names, findings, changes)
+        # Step 5: Document Summaries, Author Action Plan & Traceability Matrix
+        notify(5, "Generating Document Impact Map, Action Plan, and Traceability Matrix...")
+        doc_summaries, unaffected_docs, reference_docs = self._build_document_summaries(
+            all_document_names, findings, changes, reference_document_names
+        )
         action_plan = self._build_action_plan(findings)
+        traceability_matrix = self._build_traceability_matrix(findings)
 
         # Metrics
         affected_count = len([d for d in doc_summaries if d.status == ImpactStatus.AFFECTED])
+        pot_affected_count = len([d for d in doc_summaries if d.status == ImpactStatus.POTENTIALLY_AFFECTED])
         high_cnt = sum(1 for f in findings if f.priority == PriorityLevel.HIGH)
         med_cnt = sum(1 for f in findings if f.priority == PriorityLevel.MEDIUM)
         low_cnt = sum(1 for f in findings if f.priority == PriorityLevel.LOW)
@@ -109,6 +115,7 @@ class GapAnalysisPipeline:
             analyzed_at=datetime.now(timezone.utc),
             total_documents=len(all_document_names),
             affected_documents_count=affected_count,
+            potentially_affected_count=pot_affected_count,
             high_priority_count=high_cnt,
             medium_priority_count=med_cnt,
             low_priority_count=low_cnt,
@@ -117,6 +124,8 @@ class GapAnalysisPipeline:
             findings=findings,
             action_plan=action_plan,
             unaffected_documents=unaffected_docs,
+            reference_documents=reference_docs,
+            traceability_matrix=traceability_matrix,
         )
         return report
 
@@ -125,7 +134,8 @@ class GapAnalysisPipeline:
         all_docs: List[str],
         findings: List[Finding],
         changes: List[SoftwareChange],
-    ) -> Tuple[List[DocumentSummary], List[DocumentSummary]]:
+        reference_doc_names: Optional[List[str]] = None,
+    ) -> Tuple[List[DocumentSummary], List[DocumentSummary], List[DocumentSummary]]:
         doc_findings_map: Dict[str, List[Finding]] = {d: [] for d in all_docs}
         for f in findings:
             if f.document in doc_findings_map:
@@ -135,9 +145,31 @@ class GapAnalysisPipeline:
 
         all_summaries: List[DocumentSummary] = []
         unaffected: List[DocumentSummary] = []
+        reference_docs: List[DocumentSummary] = []
+
+        ref_names_set = set(reference_doc_names or [])
 
         for doc_name, doc_fnds in doc_findings_map.items():
-            if doc_fnds:
+            # Check if this document is a current-state reference document
+            is_ref = doc_name in ref_names_set or any(
+                k in doc_name.lower()
+                for k in ["release_notes", "release notes", "what's new", "whats_new", "whats new", "delta_doc", "reference"]
+            )
+
+            if is_ref:
+                summary = DocumentSummary(
+                    document=doc_name,
+                    status=ImpactStatus.REFERENCE,
+                    highest_priority=None,
+                    affected_locations_count=0,
+                    change_types=[],
+                    action_summary="Current-state reference used to establish the target software state.",
+                    non_impact_reason="Current-state reference used to establish the target software state.",
+                    findings=[],
+                )
+                all_summaries.append(summary)
+                reference_docs.append(summary)
+            elif doc_fnds:
                 # Prioritize: High > Medium > Low
                 priorities = [f.priority for f in doc_fnds]
                 highest_pri = PriorityLevel.HIGH if PriorityLevel.HIGH in priorities else (
@@ -146,9 +178,13 @@ class GapAnalysisPipeline:
                 types = list(dict.fromkeys([f.change_type for f in doc_fnds]))
                 actions = "; ".join(list(dict.fromkeys([f.recommended_action.split(".")[0] for f in doc_fnds])))[:140]
 
+                # Distinguish Affected vs Potentially Affected
+                all_pot = all(f.impact_status == ImpactStatus.POTENTIALLY_AFFECTED for f in doc_fnds)
+                status = ImpactStatus.POTENTIALLY_AFFECTED if all_pot else ImpactStatus.AFFECTED
+
                 summary = DocumentSummary(
                     document=doc_name,
-                    status=ImpactStatus.AFFECTED,
+                    status=status,
                     highest_priority=highest_pri,
                     affected_locations_count=len(doc_fnds),
                     change_types=types,
@@ -157,23 +193,41 @@ class GapAnalysisPipeline:
                 )
                 all_summaries.append(summary)
             else:
-                # Document was NOT affected
-                change_topics = ", ".join([c.affected_subsystem for c in changes[:3]])
-                reason = f"No dependencies or references found relating to changed software capabilities ({change_topics})."
+                # Document was verified as NOT affected
+                change_topics = ", ".join(list(dict.fromkeys([c.affected_subsystem for c in changes[:3]])))
+                reason = f"Document inspected thoroughly; no dependencies or references found relating to changed software capabilities ({change_topics})."
                 summary = DocumentSummary(
                     document=doc_name,
                     status=ImpactStatus.NOT_AFFECTED,
                     highest_priority=None,
                     affected_locations_count=0,
                     change_types=[],
-                    action_summary="No changes required. Existing content remains technically accurate.",
+                    action_summary="No changes required.",
                     non_impact_reason=reason,
                     findings=[],
                 )
                 all_summaries.append(summary)
                 unaffected.append(summary)
 
-        return all_summaries, unaffected
+        return all_summaries, unaffected, reference_docs
+
+    def _build_traceability_matrix(self, findings: List[Finding]) -> List[TraceabilityItem]:
+        matrix: List[TraceabilityItem] = []
+        for idx, f in enumerate(findings, 1):
+            matrix.append(
+                TraceabilityItem(
+                    trace_id=f"TRC-{idx:03d}",
+                    change_id=f.change_id,
+                    software_change=f.software_change or f.change_summary,
+                    source_evidence=f.evidence,
+                    affected_content=f.affected_content,
+                    exact_location=f.exact_location,
+                    required_action=f.recommended_action,
+                    priority=f.priority,
+                    document=f.document,
+                )
+            )
+        return matrix
 
     def _build_action_plan(self, findings: List[Finding]) -> List[ActionItem]:
         plan: List[ActionItem] = []

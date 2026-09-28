@@ -1,25 +1,55 @@
 """
 HTML Report Exporter for iSync.
-Produces a clean, standalone HTML gap analysis report with executive metrics,
-Document Impact Map, Author Action Plan, and Detailed Findings.
+Produces a clean, standalone HTML gap analysis report with all 8 enterprise sections:
+1. Executive Summary
+2. Software Change Inventory
+3. Document Impact Map
+4. Author Action Plan
+5. Detailed Findings & Grounded Evidence
+6. Verified Unaffected Course Material
+7. Current-State Reference Documents
+8. Traceability Matrix
 """
 
-from app.models.schemas import GapAnalysisReport, PriorityLevel
+from app.models.schemas import GapAnalysisReport, PriorityLevel, ImpactStatus
 
 
 class HTMLExporter:
     @staticmethod
     def export(report: GapAnalysisReport) -> str:
-        # Document Impact Map table rows
+        # Section 2: Change Inventory rows
+        change_rows_html = []
+        for c in report.changes:
+            change_rows_html.append(f"""
+            <tr>
+                <td><strong>{c.change_id}</strong></td>
+                <td>{c.software_area}</td>
+                <td><strong>{c.title}</strong></td>
+                <td>{c.change_type.value}</td>
+                <td><code>{c.previous_state or '—'}</code></td>
+                <td><code>{c.current_state or '—'}</code></td>
+                <td>{c.confidence.value}</td>
+            </tr>
+            """)
+
+        # Section 3: Document Impact Map table rows
         doc_rows_html = []
         for d in report.document_summaries:
             pri_badge = f"<span class='badge-{d.highest_priority.value.lower()}'>{d.highest_priority.value}</span>" if d.highest_priority else "—"
-            status_cls = "status-affected" if d.status.value == "Affected" else "status-unaffected"
+            if d.status == ImpactStatus.AFFECTED:
+                status_html = "<span class='status-affected'>🔴 Affected</span>"
+            elif d.status == ImpactStatus.POTENTIALLY_AFFECTED:
+                status_html = "<span class='status-potential'>🟡 Potentially Affected</span>"
+            elif d.status == ImpactStatus.REFERENCE:
+                status_html = "<span class='status-reference'>🔵 Reference</span>"
+            else:
+                status_html = "<span class='status-unaffected'>🟢 Not Affected</span>"
+
             types_str = ", ".join([t.value for t in d.change_types]) if d.change_types else "None"
             doc_rows_html.append(f"""
             <tr>
                 <td><strong>{d.document}</strong></td>
-                <td><span class='{status_cls}'>{d.status.value}</span></td>
+                <td>{status_html}</td>
                 <td>{pri_badge}</td>
                 <td>{d.affected_locations_count}</td>
                 <td>{types_str}</td>
@@ -27,7 +57,7 @@ class HTMLExporter:
             </tr>
             """)
 
-        # Action plan cards
+        # Section 4: Action plan cards
         action_cards_html = []
         for idx, act in enumerate(report.action_plan, 1):
             pri_cls = f"priority-{act.priority.value.lower()}"
@@ -56,7 +86,7 @@ class HTMLExporter:
             </div>
             """)
 
-        # Detailed findings
+        # Section 5: Detailed findings
         findings_html = []
         for f in report.findings:
             pri_cls = f"priority-{f.priority.value.lower()}"
@@ -71,68 +101,111 @@ class HTMLExporter:
                     </div>
                     <span class="doc-name">{f.document}</span>
                 </div>
-                <h3>{f.change_summary}</h3>
+                <h3>{f.software_change or f.change_summary}</h3>
                 <div class="loc-banner">📍 Exact Location: {f.exact_location}</div>
                 
                 <div class="section-block">
-                    <div class="block-title">AFFECTED COURSE CONTENT</div>
+                    <div class="block-title">EXISTING COURSE CONTENT</div>
                     <div class="content-box">{f.affected_content}</div>
                 </div>
 
                 <div class="section-block">
-                    <div class="block-title">GROUNDED EVIDENCE</div>
+                    <div class="block-title">GROUNDED EVIDENCE (Verbatim Source Quote)</div>
                     <div class="evidence-box">"{f.evidence}"</div>
                 </div>
 
                 <div class="section-block">
-                    <div class="block-title">WHY THIS WAS FLAGGED</div>
+                    <div class="block-title">WHY THIS IS AFFECTED</div>
                     <div class="why-box">{f.why_flagged}</div>
                 </div>
 
                 <div class="section-block">
-                    <div class="block-title">RECOMMENDED AUTHOR ACTION</div>
-                    <div class="author-action-box">{f.recommended_action}</div>
+                    <div class="block-title">REQUIRED AUTHOR ACTION</div>
+                    <div class="author-action-box">👉 {f.recommended_action}</div>
                 </div>
             </div>
+            """)
+
+        # Section 6: Verified Unaffected Material
+        unaffected_html = []
+        if report.unaffected_documents:
+            for u in report.unaffected_documents:
+                unaffected_html.append(f"""
+                <div class="unaffected-card">
+                    <h4>🟢 {u.document} — Confirmed Unaffected</h4>
+                    <p><strong>Verification Reason:</strong> {u.non_impact_reason or 'No conflicting dependencies found.'}</p>
+                    <p><strong>Author Directive:</strong> <code>No changes required.</code></p>
+                </div>
+                """)
+        else:
+            unaffected_html.append("<p>All analyzed documents had at least one impacted area.</p>")
+
+        # Section 7: Reference Documents
+        reference_html = []
+        if report.reference_documents:
+            for r in report.reference_documents:
+                reference_html.append(f"""
+                <div class="reference-card">
+                    <h4>🔵 {r.document} — Current-State Reference</h4>
+                    <p><strong>Role:</strong> Current-state reference used to establish the target software state.</p>
+                </div>
+                """)
+        else:
+            reference_html.append("<p>Analysis performed using parsed vendor release change notes.</p>")
+
+        # Section 8: Traceability Matrix rows
+        trace_rows_html = []
+        for t in report.traceability_matrix:
+            trace_rows_html.append(f"""
+            <tr>
+                <td><strong>{t.trace_id}</strong></td>
+                <td>{t.software_change}</td>
+                <td><strong>{t.document}</strong></td>
+                <td><code>{t.exact_location}</code></td>
+                <td><em>"{t.source_evidence}"</em></td>
+                <td>{t.required_action}</td>
+                <td><span class='badge-{t.priority.value.lower()}'>{t.priority.value}</span></td>
+            </tr>
             """)
 
         html_out = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>iSync Gap Analysis Report - {report.software} ({report.current_version} → {report.new_version})</title>
+    <title>iSync Gap Analysis Report — {report.software} ({report.current_version} → {report.new_version})</title>
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f8fafc;
-            color: #0f172a;
-            margin: 0;
-            padding: 32px;
             line-height: 1.5;
+            color: #1e293b;
+            background: #f8fafc;
+            padding: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
         }}
         .header {{
-            background: #0f172a;
-            color: #ffffff;
-            padding: 24px 30px;
-            border-radius: 10px;
+            background: #ffffff;
+            padding: 24px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
             margin-bottom: 24px;
         }}
-        .header h1 {{ margin: 0 0 6px 0; font-size: 24px; }}
-        .header p {{ margin: 0; color: #94a3b8; font-size: 13px; }}
-        
+        h1 {{ margin: 0 0 6px 0; font-size: 24px; color: #0f172a; }}
+        h2 {{ font-size: 18px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-top: 32px; }}
         .metrics-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 12px;
-            margin-bottom: 28px;
+            margin: 20px 0;
         }}
         .metric-box {{
             background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 16px;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
         }}
-        .metric-val {{ font-size: 24px; font-weight: 700; color: #0f172a; }}
+        .metric-val {{ font-size: 20px; font-weight: 700; color: #0f172a; }}
         .metric-lbl {{ font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-top: 4px; }}
         
         table {{
@@ -142,10 +215,10 @@ class HTMLExporter:
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid #e2e8f0;
-            margin-bottom: 30px;
+            margin: 16px 0;
         }}
         th, td {{
-            padding: 12px 14px;
+            padding: 10px 14px;
             text-align: left;
             border-bottom: 1px solid #e2e8f0;
             font-size: 13px;
@@ -156,6 +229,8 @@ class HTMLExporter:
         .badge-medium {{ background: #fef3c7; color: #b45309; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 11px; }}
         .badge-low {{ background: #dbeafe; color: #1d4ed8; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 11px; }}
         .status-affected {{ color: #dc2626; font-weight: 700; }}
+        .status-potential {{ color: #d97706; font-weight: 700; }}
+        .status-reference {{ color: #2563eb; font-weight: 700; }}
         .status-unaffected {{ color: #16a34a; font-weight: 600; }}
 
         .action-card {{
@@ -208,6 +283,16 @@ class HTMLExporter:
         .evidence-box {{ background: #fffbeb; padding: 10px; border-radius: 6px; font-size: 13px; color: #92400e; font-style: italic; border: 1px solid #fde68a; }}
         .why-box {{ font-size: 13px; color: #334155; }}
         .author-action-box {{ background: #eff6ff; padding: 10px; border-radius: 6px; font-size: 13px; color: #1e40af; font-weight: 600; border: 1px solid #bfdbfe; }}
+        
+        .unaffected-card, .reference-card {{
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 14px 18px;
+            margin-bottom: 12px;
+        }}
+        .unaffected-card h4, .reference-card h4 {{ margin: 0 0 6px 0; font-size: 14px; color: #0f172a; }}
+        .unaffected-card p, .reference-card p {{ margin: 3px 0; font-size: 13px; color: #475569; }}
     </style>
 </head>
 <body>
@@ -227,7 +312,25 @@ class HTMLExporter:
         <div class="metric-box"><div class="metric-val" style="color: #2563eb;">{report.low_priority_count}</div><div class="metric-lbl">Low Priority</div></div>
     </div>
 
-    <h2>2. Document Impact Map</h2>
+    <h2>2. Software Change Inventory</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Change ID</th>
+                <th>Software Area</th>
+                <th>Feature / Workflow</th>
+                <th>Change Type</th>
+                <th>Previous State</th>
+                <th>Current State</th>
+                <th>Confidence</th>
+            </tr>
+        </thead>
+        <tbody>
+            {"".join(change_rows_html)}
+        </tbody>
+    </table>
+
+    <h2>3. Document Impact Map</h2>
     <table>
         <thead>
             <tr>
@@ -235,7 +338,7 @@ class HTMLExporter:
                 <th>Status</th>
                 <th>Priority</th>
                 <th>Affected Locations</th>
-                <th>Change Types</th>
+                <th>Change Categories</th>
                 <th>Required Action</th>
             </tr>
         </thead>
@@ -244,11 +347,35 @@ class HTMLExporter:
         </tbody>
     </table>
 
-    <h2>3. Author Action Plan</h2>
+    <h2>4. Author Action Plan</h2>
     {"".join(action_cards_html)}
 
-    <h2>4. Detailed Findings Dossier</h2>
+    <h2>5. Detailed Findings & Grounded Evidence</h2>
     {"".join(findings_html)}
+
+    <h2>6. Verified Unaffected Course Material</h2>
+    {"".join(unaffected_html)}
+
+    <h2>7. Current-State Reference Documents</h2>
+    {"".join(reference_html)}
+
+    <h2>8. Traceability Matrix</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Trace ID</th>
+                <th>Software Change</th>
+                <th>Document</th>
+                <th>Exact Location</th>
+                <th>Source Grounded Evidence</th>
+                <th>Required Author Action</th>
+                <th>Priority</th>
+            </tr>
+        </thead>
+        <tbody>
+            {"".join(trace_rows_html)}
+        </tbody>
+    </table>
 </body>
 </html>
 """

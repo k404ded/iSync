@@ -9,7 +9,7 @@ from app.models.schemas import GapAnalysisReport, PriorityLevel
 
 
 def render_action_plan(report: GapAnalysisReport):
-    st.subheader("3. Author Action Plan")
+    st.subheader("4. Author Action Plan")
     st.caption("Actionable course maintenance checklist for authors and curriculum developers.")
 
     if not report.action_plan:

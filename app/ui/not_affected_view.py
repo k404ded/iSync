@@ -1,7 +1,7 @@
 """
-Not Affected Documents View for iSync.
+Verified Unaffected Documents View for iSync.
 Explains why specific curriculum files were verified as untouched and requiring no change.
-Builds user trust in precision gap analysis.
+Strictly excludes current/new-version reference documents.
 """
 
 import streamlit as st
@@ -9,7 +9,7 @@ from app.models.schemas import GapAnalysisReport
 
 
 def render_not_affected_view(report: GapAnalysisReport):
-    st.subheader("5. Verified Unaffected Course Material")
+    st.subheader("6. Verified Unaffected Course Material")
     st.caption("Documents inspected during analysis that contain no conflicting dependencies or obsolete workflows.")
 
     if not report.unaffected_documents:
@@ -18,6 +18,6 @@ def render_not_affected_view(report: GapAnalysisReport):
 
     for doc in report.unaffected_documents:
         with st.container(border=True):
-            st.markdown(f"**🟢 {doc.document}** — *No material impact detected*")
-            st.markdown(f"**Verification Reason:** {doc.non_impact_reason or 'No conflicting software dependencies found.'}")
-            st.markdown(f"**Author Directive:** {doc.action_summary}")
+            st.markdown(f"**🟢 {doc.document}** — *Confirmed Unaffected*")
+            st.markdown(f"**Verification Reason:** {doc.non_impact_reason or 'Document was inspected thoroughly; no dependencies on the changed software capabilities were found.'}")
+            st.markdown(f"**Author Directive:** `No changes required.`")

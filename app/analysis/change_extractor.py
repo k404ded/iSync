@@ -5,7 +5,7 @@ Transforms unstructured change text, release notes, or vendor deltas into struct
 
 import re
 from typing import List, Optional
-from app.models.schemas import SoftwareChange, ChangeType
+from app.models.schemas import SoftwareChange, ChangeType, ConfidenceLevel
 
 
 class ChangeExtractor:
@@ -154,10 +154,23 @@ class ChangeExtractor:
             if len(title) > 75:
                 title = title[:72] + "..."
 
+            # Feature or workflow name
+            feature_workflow = old_term or (title.split(" ")[0] + " " + title.split(" ")[1] if len(title.split(" ")) > 1 else title)
+
+            # Previous & current state descriptions
+            prev_st = old_term or old_wf or f"Pre-{new_version} standard behavior/UI"
+            curr_st = new_term or new_wf or f"Updated {new_version} behavior/UI"
+
             change = SoftwareChange(
                 change_id=f"CHG-{change_counter:03d}",
                 title=title,
+                software_area=subsystem,
+                feature_workflow=feature_workflow,
+                previous_state=prev_st,
+                current_state=curr_st,
                 change_type=change_type,
+                source_location=f"{software_name} {new_version} Release Notes / Delta",
+                confidence=ConfidenceLevel.HIGH,
                 description=clean_b,
                 affected_subsystem=subsystem,
                 old_term=old_term,

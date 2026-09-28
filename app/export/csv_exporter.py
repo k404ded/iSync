@@ -14,18 +14,19 @@ class CSVExporter:
         for f in report.findings:
             rows.append({
                 "Finding ID": f.finding_id,
+                "Change ID": f.change_id,
+                "Software Change": f.software_change or f.change_summary,
                 "Document": f.document,
+                "Exact Location": f.exact_location,
                 "Priority": f.priority.value,
                 "Confidence": f.confidence.value,
                 "Change Type": f.change_type.value,
-                "Location": f.exact_location,
-                "Change": f.change_summary,
+                "Previous State": f.previous_state or f.old_state or "",
+                "Current State": f.current_state or f.new_state or "",
                 "Affected Content": f.affected_content,
-                "Evidence": f.evidence,
-                "Why Flagged": f.why_flagged,
-                "Recommended Action": f.recommended_action,
-                "Old State": f.old_state or "",
-                "New State": f.new_state or "",
+                "Grounded Evidence": f.evidence,
+                "Why Affected": f.why_flagged,
+                "Required Author Action": f.recommended_action,
             })
 
         df = pd.DataFrame(rows)

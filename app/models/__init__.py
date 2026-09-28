@@ -12,6 +12,7 @@ from app.models.schemas import (
     Finding,
     ActionItem,
     DocumentSummary,
+    TraceabilityItem,
     GapAnalysisReport,
 )
 
@@ -25,5 +26,6 @@ __all__ = [
     "Finding",
     "ActionItem",
     "DocumentSummary",
+    "TraceabilityItem",
     "GapAnalysisReport",
 ]

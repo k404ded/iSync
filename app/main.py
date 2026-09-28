@@ -20,10 +20,13 @@ from app.ui import (
     APP_CSS,
     render_sidebar,
     render_executive_summary,
+    render_change_inventory,
     render_impact_map,
     render_action_plan,
     render_findings_view,
     render_not_affected_view,
+    render_reference_documents_view,
+    render_traceability_matrix,
 )
 
 # Page configuration
@@ -173,17 +176,29 @@ else:
     render_executive_summary(report)
     st.divider()
 
-    # 2. Document Impact Map
+    # 2. Software Change Inventory
+    render_change_inventory(report)
+    st.divider()
+
+    # 3. Document Impact Map
     render_impact_map(report)
     st.divider()
 
-    # 3. Author Action Plan
+    # 4. Author Action Plan
     render_action_plan(report)
     st.divider()
 
-    # 4. Detailed Findings Dossier
+    # 5. Detailed Findings & Grounded Evidence
     render_findings_view(report)
     st.divider()
 
-    # 5. Verified Unaffected Course Material
+    # 6. Verified Unaffected Course Material
     render_not_affected_view(report)
+    st.divider()
+
+    # 7. Current-State Reference Documents
+    render_reference_documents_view(report)
+    st.divider()
+
+    # 8. Traceability Matrix
+    render_traceability_matrix(report)

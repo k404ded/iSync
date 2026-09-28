@@ -63,31 +63,41 @@ def run_demo():
     )
 
     # 1. Executive Summary
-    print("\n" + "=" * 75)
-    print(" 1. GAP ANALYSIS SUMMARY")
-    print("=" * 75)
+    print("\n" + "=" * 80)
+    print(" 1. EXECUTIVE SUMMARY")
+    print("=" * 80)
     print(f"Software:             {report.software}")
     print(f"Version:              {report.current_version} → {report.new_version}")
     print(f"Documents Analyzed:   {report.total_documents}")
-    print(f"Documents Affected:   {report.affected_documents_count}")
+    print(f"Documents Requiring Action: {report.affected_documents_count}")
     print(f"High Priority:        {report.high_priority_count}")
     print(f"Medium Priority:      {report.medium_priority_count}")
     print(f"Low Priority:         {report.low_priority_count}")
 
-    # 2. Document Impact Map
-    print("\n" + "=" * 75)
-    print(" 2. DOCUMENT IMPACT MAP")
-    print("=" * 75)
-    print(f"{'DOCUMENT':<32} | {'STATUS':<12} | {'PRIORITY':<8} | {'LOCS':<4} | {'REQUIRED ACTION'}")
+    # 2. Software Change Inventory
+    print("\n" + "=" * 80)
+    print(" 2. SOFTWARE CHANGE INVENTORY")
+    print("=" * 80)
+    print(f"{'CHANGE ID':<10} | {'AREA':<22} | {'TYPE':<22} | {'CHANGE TITLE'}")
+    print("-" * 80)
+    for c in report.changes:
+        print(f"{c.change_id:<10} | {c.software_area[:20]:<22} | {c.change_type.value[:20]:<22} | {c.title[:45]}")
+
+    # 3. Document Impact Map
+    print("\n" + "=" * 80)
+    print(" 3. DOCUMENT IMPACT MAP")
+    print("=" * 80)
+    print(f"{'DOCUMENT':<32} | {'STATUS':<15} | {'PRIORITY':<8} | {'LOCS':<4} | {'REQUIRED ACTION'}")
     print("-" * 105)
     for d in report.document_summaries:
         pri = d.highest_priority.value if d.highest_priority else "—"
-        print(f"{d.document:<32} | {d.status.value:<12} | {pri:<8} | {d.affected_locations_count:<4} | {d.action_summary[:42]}")
+        status_icon = "🔴" if d.status.value == "Affected" else ("🟡" if "Potentially" in d.status.value else ("🔵" if d.status.value == "Reference" else "🟢"))
+        print(f"{d.document:<32} | {status_icon} {d.status.value:<12} | {pri:<8} | {d.affected_locations_count:<4} | {d.action_summary[:42]}")
 
-    # 3. Author Action Plan
-    print("\n" + "=" * 75)
-    print(" 3. AUTHOR ACTION PLAN (What exactly do I need to change?)")
-    print("=" * 75)
+    # 4. Author Action Plan
+    print("\n" + "=" * 80)
+    print(" 4. AUTHOR ACTION PLAN (What exactly do I need to change?)")
+    print("=" * 80)
     for idx, act in enumerate(report.action_plan, 1):
         print(f"\n#{idx} [{act.priority.value.upper()}] {act.action_type} in {act.document}")
         print(f"   Change:   {act.change_title}")
@@ -97,17 +107,50 @@ def run_demo():
             print(f"   TO:       \"{act.new_state}\"")
         print(f"   Action:   {act.instructions}")
 
-    # 4. Verified Unaffected Documents
-    print("\n" + "=" * 75)
-    print(" 4. VERIFIED UNAFFECTED MATERIAL")
-    print("=" * 75)
-    for u in report.unaffected_documents:
-        print(f"• {u.document}: {u.non_impact_reason}")
+    # 5. Detailed Findings & Grounded Evidence
+    print("\n" + "=" * 80)
+    print(" 5. DETAILED FINDINGS & GROUNDED EVIDENCE (Sample)")
+    print("=" * 80)
+    for f in report.findings[:3]:
+        print(f"\n[{f.priority.value.upper()}] {f.finding_id} — {f.software_change or f.change_summary}")
+        print(f"   Document:        {f.document}")
+        print(f"   Exact Location:  {f.exact_location}")
+        print(f"   Course Excerpt:  \"{f.affected_content[:100]}...\"")
+        print(f"   Grounded Quote:  \"{f.evidence}\"")
+        print(f"   Why Affected:    {f.why_flagged}")
+        print(f"   Author Action:   {f.recommended_action}")
 
-    # 5. Export Reports
-    print("\n" + "=" * 75)
-    print(" 5. EXPORTING REPORTS")
-    print("=" * 75)
+    # 6. Verified Unaffected Material
+    print("\n" + "=" * 80)
+    print(" 6. VERIFIED UNAFFECTED COURSE MATERIAL")
+    print("=" * 80)
+    for u in report.unaffected_documents:
+        print(f"• 🟢 {u.document}: {u.non_impact_reason}")
+        print(f"  Author Directive: No changes required.")
+
+    # 7. Current-State Reference Documents
+    print("\n" + "=" * 80)
+    print(" 7. CURRENT-STATE REFERENCE DOCUMENTS")
+    print("=" * 80)
+    if report.reference_documents:
+        for r in report.reference_documents:
+            print(f"• 🔵 {r.document}: Current-state reference used to establish the target software state.")
+    else:
+        print("• Analysis performed using parsed vendor release change notes.")
+
+    # 8. Traceability Matrix
+    print("\n" + "=" * 80)
+    print(" 8. TRACEABILITY MATRIX (Sample Links)")
+    print("=" * 80)
+    print(f"{'TRACE ID':<10} | {'CHANGE ID':<10} | {'DOCUMENT':<28} | {'EXACT LOCATION':<35} | {'PRIORITY'}")
+    print("-" * 95)
+    for t in report.traceability_matrix[:4]:
+        print(f"{t.trace_id:<10} | {t.change_id:<10} | {t.document[:26]:<28} | {t.exact_location[:33]:<35} | {t.priority.value}")
+
+    # Export Reports
+    print("\n" + "=" * 80)
+    print(" EXPORTING REPORTS")
+    print("=" * 80)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     base_name = f"iSync_Report_{report.software}_{report.new_version}_{report.report_id}"
 

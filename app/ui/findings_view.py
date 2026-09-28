@@ -2,6 +2,7 @@
 Detailed Findings Dossier View for iSync.
 Presents evidence-grounded findings with exact locations, verbatim evidence, and technical rationales.
 Uses native Streamlit expanders and clean markdown without raw HTML markup.
+Adheres strictly to Section 5: Detailed Findings & Grounded Evidence.
 """
 
 import streamlit as st
@@ -9,7 +10,7 @@ from app.models.schemas import GapAnalysisReport, PriorityLevel
 
 
 def render_findings_view(report: GapAnalysisReport):
-    st.subheader("4. Detailed Findings & Grounded Evidence")
+    st.subheader("5. Detailed Findings & Grounded Evidence")
     st.caption("Expand any finding below to inspect the verbatim source excerpts, grounded evidence, and exact locations.")
 
     if not report.findings:
@@ -31,7 +32,8 @@ def render_findings_view(report: GapAnalysisReport):
         q = search_term.lower()
         filtered = [
             f for f in filtered
-            if q in f.change_summary.lower()
+            if q in f.software_change.lower()
+            or q in f.change_summary.lower()
             or q in f.exact_location.lower()
             or q in f.affected_content.lower()
             or q in f.evidence.lower()
@@ -44,7 +46,8 @@ def render_findings_view(report: GapAnalysisReport):
 
     for f in filtered:
         priority_icon = "🔴" if f.priority == PriorityLevel.HIGH else ("🟡" if f.priority == PriorityLevel.MEDIUM else "🔵")
-        expander_title = f"{priority_icon} [{f.priority.value}] {f.finding_id} — {f.change_summary} ({f.document})"
+        summary_title = f.software_change or f.change_summary
+        expander_title = f"{priority_icon} [{f.priority.value}] {f.finding_id} — {summary_title} ({f.document})"
 
         with st.expander(expander_title, expanded=(f.priority == PriorityLevel.HIGH)):
             # Metadata row
@@ -52,14 +55,23 @@ def render_findings_view(report: GapAnalysisReport):
             c1.markdown(f"**Priority:** `{f.priority.value}`")
             c2.markdown(f"**Confidence:** `{f.confidence.value}`")
             c3.markdown(f"**Change Type:** `{f.change_type.value}`")
-            c4.markdown(f"**Document:** `{f.document}`")
+            c4.markdown(f"**Affected Document:** `{f.document}`")
 
             st.divider()
 
             st.markdown(f"**📍 Exact Location:**\n`{f.exact_location}`")
 
             st.markdown("**WHAT CHANGED IN SOFTWARE:**")
-            st.write(f.change_summary)
+            st.write(f.software_change or f.change_summary)
+
+            prev_st = f.previous_state or f.old_state
+            curr_st = f.current_state or f.new_state
+            if prev_st and curr_st:
+                col_p, col_c = st.columns(2)
+                with col_p:
+                    st.markdown(f"**Previous State (Old Software):**\n`{prev_st}`")
+                with col_c:
+                    st.markdown(f"**Current State (Target Software):**\n`{curr_st}`")
 
             st.markdown("**EXISTING COURSE CONTENT:**")
             st.info(f.affected_content)
@@ -67,12 +79,8 @@ def render_findings_view(report: GapAnalysisReport):
             st.markdown("**GROUNDED EVIDENCE (Verbatim Source Quote):**")
             st.warning(f"\"{f.evidence}\"")
 
-            st.markdown("**WHY THIS WAS FLAGGED:**")
+            st.markdown("**WHY THIS IS AFFECTED:**")
             st.write(f.why_flagged)
 
-            st.markdown("**RECOMMENDED AUTHOR ACTION:**")
+            st.markdown("**REQUIRED AUTHOR ACTION:**")
             st.success(f.recommended_action)
-
-            if f.old_state and f.new_state:
-                st.markdown("**TRANSITION:**")
-                st.code(f"OLD: {f.old_state}\nNEW: {f.new_state}")
